@@ -1,0 +1,280 @@
+{
+  "total_budget": 10000,
+  "en_target": 1.2,
+  "top_n": 1300,
+  "slots_used": 10000,
+  "phase1_merges": 2389,
+  "phase2_merges": 6164,
+  "vocab_json_size": 10000,
+  "merges_json_size": 8553,
+  "unk_check": {
+    "en": {
+      "words_checked": 2906,
+      "ok": true
+    },
+    "hi": {
+      "words_checked": 2096,
+      "ok": true
+    },
+    "te": {
+      "words_checked": 1372,
+      "ok": true
+    },
+    "es": {
+      "words_checked": 2786,
+      "ok": true
+    }
+  },
+  "unk_check_all_ok": true,
+  "summary": {
+    "en": {
+      "name": "English",
+      "unique_words": 1300,
+      "total_tokens": 1501,
+      "ratio": 1.1546153846153846,
+      "base_units": 56,
+      "examples": [
+        {
+          "word": "the",
+          "tokens": [
+            "the"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 806
+        },
+        {
+          "word": "and",
+          "tokens": [
+            "and"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 389
+        },
+        {
+          "word": "of",
+          "tokens": [
+            "of"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 377
+        },
+        {
+          "word": "in",
+          "tokens": [
+            "in"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 303
+        },
+        {
+          "word": "india",
+          "tokens": [
+            "india"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 221
+        },
+        {
+          "word": "to",
+          "tokens": [
+            "to"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 182
+        }
+      ]
+    },
+    "hi": {
+      "name": "Hindi",
+      "unique_words": 1300,
+      "total_tokens": 1501,
+      "ratio": 1.1546153846153846,
+      "base_units": 594,
+      "examples": [
+        {
+          "word": "के",
+          "tokens": [
+            "के"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 375
+        },
+        {
+          "word": "में",
+          "tokens": [
+            "में"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 332
+        },
+        {
+          "word": "है",
+          "tokens": [
+            "है"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 220
+        },
+        {
+          "word": "और",
+          "tokens": [
+            "और"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 198
+        },
+        {
+          "word": "भारत",
+          "tokens": [
+            "भारत"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 181
+        },
+        {
+          "word": "की",
+          "tokens": [
+            "की"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 168
+        }
+      ]
+    },
+    "te": {
+      "name": "Telugu",
+      "unique_words": 1300,
+      "total_tokens": 1501,
+      "ratio": 1.1546153846153846,
+      "base_units": 656,
+      "examples": [
+        {
+          "word": "భారతదేశం",
+          "tokens": [
+            "భారతదేశం"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 22
+        },
+        {
+          "word": "ఈ",
+          "tokens": [
+            "ఈ"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 21
+        },
+        {
+          "word": "ఉంది",
+          "tokens": [
+            "ఉంది"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 17
+        },
+        {
+          "word": "ఉన్నాయి",
+          "tokens": [
+            "ఉన్నాయి"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 17
+        },
+        {
+          "word": "భారత",
+          "tokens": [
+            "భారత"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 16
+        },
+        {
+          "word": "కూడా",
+          "tokens": [
+            "కూడా"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 14
+        }
+      ]
+    },
+    "es": {
+      "name": "Spanish",
+      "unique_words": 1300,
+      "total_tokens": 1502,
+      "ratio": 1.1553846153846155,
+      "base_units": 53,
+      "examples": [
+        {
+          "word": "de",
+          "tokens": [
+            "de"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 785
+        },
+        {
+          "word": "la",
+          "tokens": [
+            "la"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 646
+        },
+        {
+          "word": "el",
+          "tokens": [
+            "el"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 427
+        },
+        {
+          "word": "y",
+          "tokens": [
+            "y"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 347
+        },
+        {
+          "word": "en",
+          "tokens": [
+            "en"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 331
+        },
+        {
+          "word": "los",
+          "tokens": [
+            "los"
+          ],
+          "n_tokens": 1,
+          "corpus_freq": 220
+        }
+      ]
+    }
+  },
+  "x_sorted": [
+    [
+      "en",
+      1.1546153846153846
+    ],
+    [
+      "hi",
+      1.1546153846153846
+    ],
+    [
+      "te",
+      1.1546153846153846
+    ],
+    [
+      "es",
+      1.1553846153846155
+    ]
+  ],
+  "x_min": 1.1546153846153846,
+  "x_max": 1.1553846153846155,
+  "score": 1299999.9999998545
+}
