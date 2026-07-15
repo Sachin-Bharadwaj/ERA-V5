@@ -108,3 +108,31 @@ class BPETokenizer:
 
     def vocab_size(self) -> int:
         return len(self.vocab)
+
+    # ---- full-text encode/decode ----------------------------------------
+    #
+    # `encode` above only ever handles a single pre-segmented word. Real
+    # documents are not one word -- they're words interleaved with
+    # whitespace and punctuation, and every one of those characters has
+    # to survive a roundtrip. `encode_text` is the actual text-level API:
+    # word-run pretokens go through segment_fn + the learned merges (same
+    # as `encode`); every other pretoken (always exactly one character --
+    # see `tokenize_full_text`) is passed through literally, so it is
+    # never at risk of being dropped or replaced by an UNK placeholder,
+    # whether or not that particular character was in the declared
+    # vocabulary. `decode` is the exact inverse: BPE tokens are always
+    # literal substrings of the input, so plain concatenation, in order,
+    # reconstructs the original text exactly.
+
+    def encode_text(self, text: str, segment_fn, tokenize_fn, is_word_fn) -> list:
+        tokens = []
+        for pretoken in tokenize_fn(text):
+            if is_word_fn(pretoken):
+                tokens.extend(self.encode(segment_fn(pretoken)))
+            else:
+                tokens.append(pretoken)
+        return tokens
+
+    @staticmethod
+    def decode(tokens: list) -> str:
+        return "".join(tokens)

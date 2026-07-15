@@ -2,10 +2,12 @@
 Module 6: End-to-end pipeline orchestrator.
 
 corpora -> vocab_eval (full-coverage freq + top-N curated vocab_words)
--> single_bpe (ONE joint 10,000-token BPE, English forced below 1.2,
-remaining budget spent minimizing max(X)-min(X) across all four
-languages) -> zero-UNK verification -> final X1..X4 + score -> JSON/vocab/
-merges dumps + REPORT.md.
+-> single_bpe (ONE joint 10,000-token BPE, seeded with a punctuation/
+whitespace base alphabet so real prose -- not just isolated words --
+can be encoded and decoded; English forced below 1.2, remaining budget
+spent minimizing max(X)-min(X) across all four languages) -> zero-UNK
+verification -> faithful-roundtrip verification -> final X1..X4 + score
+-> JSON/vocab/merges dumps + REPORT.md.
 """
 import json
 import os
@@ -15,8 +17,16 @@ import time
 sys.path.insert(0, os.path.dirname(__file__))
 
 from vocab_eval import load_all, TOP_N
-from single_bpe import train_single_bpe, ratio, verify_no_unk
+from single_bpe import train_single_bpe, ratio, verify_no_unk, verify_roundtrip
 from segmenters import segment_word
+
+ROUNDTRIP_SAMPLES = [
+    "India's population is 1,428,627,663.",
+    "# Heading\n\nSome *emphasis* and a [link](url), plus `code`.",
+    "भारत की जनसंख्या 1,428,627,663 है।",
+    "¿Cuál es la población de la India? ¡Más de mil millones!",
+    "తెలుగు ప్రజల సంఖ్య 9,00,00,000 కి పైగా ఉంది.",
+]
 
 TOTAL_BUDGET = 10000
 EN_TARGET = 1.2
@@ -79,6 +89,15 @@ def main():
               f"{'OK, zero UNK' if r['ok'] else 'FAILED, missing units: ' + str(r['missing_units'])}")
     print(f"  ALL LANGUAGES ZERO-UNK: {unk_report['all_ok']}")
 
+    print("\nVerifying faithful roundtrip (decode(encode_text(text)) == text)...")
+    roundtrip_report = verify_roundtrip(tok, ROUNDTRIP_SAMPLES)
+    for s in roundtrip_report["samples"]:
+        status = "OK" if s["exact_roundtrip"] else "FAILED"
+        print(f"  {status}: {s['text']!r} -> {s['n_tokens']} tokens")
+        if not s["exact_roundtrip"]:
+            print(f"    decoded: {s['decoded']!r}")
+    print(f"  ALL ROUNDTRIP OK: {roundtrip_report['all_ok']}")
+
     summary = {}
     for lang, d in lang_data.items():
         words = result["words_by_lang"][lang]
@@ -125,6 +144,7 @@ def main():
         "unk_check": {lang: {"words_checked": unk_report[lang]["words_checked"],
                               "ok": unk_report[lang]["ok"]} for lang in ["en", "hi", "te", "es"]},
         "unk_check_all_ok": unk_report["all_ok"],
+        "roundtrip_check": roundtrip_report,
         "summary": summary,
         "x_sorted": x_sorted,
         "x_min": x_min,

@@ -4,9 +4,9 @@
   "top_n": 1300,
   "slots_used": 10000,
   "phase1_merges": 2389,
-  "phase2_merges": 6164,
+  "phase2_merges": 6116,
   "vocab_json_size": 10000,
-  "merges_json_size": 8553,
+  "merges_json_size": 8505,
   "unk_check": {
     "en": {
       "words_checked": 2906,
@@ -26,12 +26,52 @@
     }
   },
   "unk_check_all_ok": true,
+  "roundtrip_check": {
+    "samples": [
+      {
+        "text": "India's population is 1,428,627,663.",
+        "decoded": "India's population is 1,428,627,663.",
+        "n_tokens": 25,
+        "visible_chars_preserved": true,
+        "exact_roundtrip": true
+      },
+      {
+        "text": "# Heading\n\nSome *emphasis* and a [link](url), plus `code`.",
+        "decoded": "# Heading\n\nSome *emphasis* and a [link](url), plus `code`.",
+        "n_tokens": 40,
+        "visible_chars_preserved": true,
+        "exact_roundtrip": true
+      },
+      {
+        "text": "भारत की जनसंख्या 1,428,627,663 है।",
+        "decoded": "भारत की जनसंख्या 1,428,627,663 है।",
+        "n_tokens": 22,
+        "visible_chars_preserved": true,
+        "exact_roundtrip": true
+      },
+      {
+        "text": "¿Cuál es la población de la India? ¡Más de mil millones!",
+        "decoded": "¿Cuál es la población de la India? ¡Más de mil millones!",
+        "n_tokens": 32,
+        "visible_chars_preserved": true,
+        "exact_roundtrip": true
+      },
+      {
+        "text": "తెలుగు ప్రజల సంఖ్య 9,00,00,000 కి పైగా ఉంది.",
+        "decoded": "తెలుగు ప్రజల సంఖ్య 9,00,00,000 కి పైగా ఉంది.",
+        "n_tokens": 24,
+        "visible_chars_preserved": true,
+        "exact_roundtrip": true
+      }
+    ],
+    "all_ok": true
+  },
   "summary": {
     "en": {
       "name": "English",
       "unique_words": 1300,
-      "total_tokens": 1501,
-      "ratio": 1.1546153846153846,
+      "total_tokens": 1513,
+      "ratio": 1.1638461538461538,
       "base_units": 56,
       "examples": [
         {
@@ -87,8 +127,8 @@
     "hi": {
       "name": "Hindi",
       "unique_words": 1300,
-      "total_tokens": 1501,
-      "ratio": 1.1546153846153846,
+      "total_tokens": 1513,
+      "ratio": 1.1638461538461538,
       "base_units": 594,
       "examples": [
         {
@@ -144,8 +184,8 @@
     "te": {
       "name": "Telugu",
       "unique_words": 1300,
-      "total_tokens": 1501,
-      "ratio": 1.1546153846153846,
+      "total_tokens": 1513,
+      "ratio": 1.1638461538461538,
       "base_units": 656,
       "examples": [
         {
@@ -201,8 +241,8 @@
     "es": {
       "name": "Spanish",
       "unique_words": 1300,
-      "total_tokens": 1502,
-      "ratio": 1.1553846153846155,
+      "total_tokens": 1514,
+      "ratio": 1.1646153846153846,
       "base_units": 53,
       "examples": [
         {
@@ -259,22 +299,22 @@
   "x_sorted": [
     [
       "en",
-      1.1546153846153846
+      1.1638461538461538
     ],
     [
       "hi",
-      1.1546153846153846
+      1.1638461538461538
     ],
     [
       "te",
-      1.1546153846153846
+      1.1638461538461538
     ],
     [
       "es",
-      1.1553846153846155
+      1.1646153846153846
     ]
   ],
-  "x_min": 1.1546153846153846,
-  "x_max": 1.1553846153846155,
+  "x_min": 1.1638461538461538,
+  "x_max": 1.1646153846153846,
   "score": 1299999.9999998545
 }

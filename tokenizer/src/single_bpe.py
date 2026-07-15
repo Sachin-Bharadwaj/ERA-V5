@@ -44,7 +44,7 @@ then contain a character with no base token at all. See
 """
 from collections import Counter
 from bpe import BPETokenizer
-from segmenters import segment_word
+from segmenters import segment_word, tokenize_full_text, is_word_pretoken, PUNCT_WHITESPACE_SEED
 
 
 def ratio(state: dict, words) -> float:
@@ -86,6 +86,16 @@ def _apply_merge_globally(tok: BPETokenizer, state: dict, pair: tuple) -> bool:
 
 def train_single_bpe(lang_data: dict, total_budget: int = 10000, en_target: float = 1.2):
     tok = BPETokenizer("multilingual-single-bpe")
+
+    # Seeded before anything else, so it's costed against the budget from
+    # the start: ASCII punctuation/Markdown symbols, whitespace, and a
+    # couple of script-specific marks. Without these, the tokenizer only
+    # ever knows about word characters -- it has no token at all for an
+    # apostrophe, a comma, a period, or a space, so it cannot encode (let
+    # alone decode) real running text, only isolated word strings. See
+    # `bpe.py::BPETokenizer.encode_text` for the full-text path this
+    # unlocks, and `segmenters.py::PUNCT_WHITESPACE_SEED` for the set.
+    tok.vocab.update(PUNCT_WHITESPACE_SEED)
 
     combined_freq = Counter()
     for d in lang_data.values():
@@ -138,6 +148,40 @@ def train_single_bpe(lang_data: dict, total_budget: int = 10000, en_target: floa
         "slots_used": total_budget - remaining,
         "budget": total_budget,
     }
+
+
+def encode_text(tok: BPETokenizer, text: str) -> list:
+    """Text-level encode: word runs through segment_word + learned merges,
+    every other character passed through literally. See
+    `bpe.py::BPETokenizer.encode_text` for why this always round-trips."""
+    return tok.encode_text(text, segment_word, tokenize_full_text, is_word_pretoken)
+
+
+def verify_roundtrip(tok: BPETokenizer, samples: list) -> dict:
+    """
+    For each sample string, encode_text then decode, and check that every
+    VISIBLE NON-WHITESPACE character survives in order (whitespace may
+    legitimately be reshaped -- e.g. collapsed runs -- but nothing here
+    actually does that; decode is exact concatenation, so in practice
+    whitespace round-trips exactly too). This is the concrete check behind
+    the "faithful roundtrip" gate: decode(encode_text(text)) must preserve
+    the same visible non-whitespace characters as `text`.
+    """
+    results = []
+    all_ok = True
+    for text in samples:
+        tokens = encode_text(tok, text)
+        decoded = BPETokenizer.decode(tokens)
+        visible_in = "".join(ch for ch in text if not ch.isspace())
+        visible_out = "".join(ch for ch in decoded if not ch.isspace())
+        ok = visible_in == visible_out
+        exact = decoded == text
+        all_ok = all_ok and ok
+        results.append({
+            "text": text, "decoded": decoded, "n_tokens": len(tokens),
+            "visible_chars_preserved": ok, "exact_roundtrip": exact,
+        })
+    return {"samples": results, "all_ok": all_ok}
 
 
 def verify_no_unk(tok: BPETokenizer, lang_data: dict) -> dict:

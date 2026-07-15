@@ -6,17 +6,20 @@
 **Hard constraints:** `X_English < 1.2`, and every word in all four full corpora must be encodable with **zero UNK tokens**.
 **Objective for the rest:** having satisfied those constraints, spend whatever vocabulary remains to make Hindi, Telugu, Spanish and English's ratios as close together as possible — **maximize `1000 / (X_max − X_min)`**.
 
-**Final result: score = 1,300,000** (English 1.1546, Hindi 1.1546, Telugu 1.1546, Spanish 1.1554 — all four within 0.0008 of each other), verified zero UNK across 9,160 real words. Everything below explains how, with real numbers and real examples produced by the code in `src/` (nothing here is hypothetical).
+**Final result: score = 1,300,000** (English 1.1638, Hindi 1.1638, Telugu 1.1638, Spanish 1.1646 — all four within 0.0008 of each other), verified zero UNK across 9,160 real words, and **verified faithful roundtrip** — `decode(encode_text(text)) == text` — on real prose including Markdown and every language's script. Everything below explains how, with real numbers and real examples produced by the code in `src/` (nothing here is hypothetical).
+
+> **Revision note:** an earlier version of this tokenizer scored **0** against the assignment's faithful-roundtrip gate — it had no `decode()` method at all, and its entire pipeline silently dropped every apostrophe, comma, period, and whitespace character, so it could tokenize isolated dictionary words but not real sentences. §5 below is the postmortem and the fix; all numbers elsewhere in this document already reflect the corrected tokenizer.
 
 ---
 
-## 1. Three problems, three fixes
+## 1. Four problems, four fixes
 
 | Problem | Fix | Section |
 |---|---|---|
 | Byte/codepoint-level BPE can split a Devanagari/Telugu grapheme cluster mid-character | Segment into **aksharas** (orthographic syllables), not raw codepoints, before BPE ever runs | §2 |
 | Four independently-trained tokenizers merged afterward isn't "one BPE," and can't transfer knowledge *during* training | **One** `BPETokenizer`, **one** combined training state, **one** growing merge list, for all four languages at once | §3 |
 | A literal "vocabulary = every word that ever appeared" makes `X_English < 1.2` cost ~half the entire 10,000-token budget, and capping vocabulary too aggressively can silently create UNK gaps | Curate vocabulary as **top-1,300 most frequent words**, but build the **base alphabet from the full corpus** so coverage is never lost | §4 |
+| The tokenizer only ever knew about *word* characters — no `decode()`, no way to encode an apostrophe, a comma, a period, or a space, so real prose (not just isolated dictionary words) could not round-trip | A full-text pretokenizer covering **every** character, a seeded punctuation/whitespace base alphabet, and real `encode_text()`/`decode()` methods | §5 |
 
 ---
 
@@ -159,27 +162,98 @@ ALL LANGUAGES ZERO-UNK: True
 
 ---
 
-## 5. Results
+## 5. Faithful roundtrip: the bug that scored a 0, and the fix
 
-### 5.1 Final numbers
+### 5.1 What broke
+
+The assignment's grader runs a gate on top of the `X1..X4`/score computation: `decode(encode(text))` must preserve the same visible non-whitespace characters as `text`, tested on real sentences, not isolated dictionary words. Ours failed completely — on the very first sample:
+```
+"India's population is 1,428,627,663."  ->  tokenizer has no decode method
+```
+Two separate defects, not one:
+1. **No `decode()` existed.** `BPETokenizer` had `encode()` (word → tokens) but nothing that went the other way.
+2. **The pipeline had no representation for anything except word characters.** `segmenters.py::extract_words` — the function every downstream stage (vocabulary counting, training, evaluation) is built on — matches only `\p{L}\p{M}\p{Nd}` runs. Everything else (spaces, apostrophes, commas, periods, Markdown syntax) is invisible to it:
+```python
+>>> extract_words("India's population is 1,428,627,663.")
+['India', 's', 'population', 'is', '1', '428', '627', '663']
+```
+Notice: the apostrophe is gone (splitting "India's" into two words), every comma is gone (splitting "1,428,627,663" into four separate numbers), and the period is gone entirely. Even with a `decode()` bolted on, concatenating those word-tokens could never reconstruct the original sentence — the information needed to do so had already been discarded before training ever started. This is a **structural** gap, not a missing method.
+
+### 5.2 The fix
+
+**A full-text pretokenizer** (`segmenters.py::tokenize_full_text`) that covers *every* character, not just word runs — it walks the text once, alternating word-runs (handled exactly as before: `segment_word` + the learned merges) with every other character taken one at a time:
+```python
+>>> tokenize_full_text("India's population is 1,428,627,663.")
+['India', "'", 's', ' ', 'population', ' ', 'is', ' ', '1', ',', '428', ',', '627', ',', '663', '.']
+>>> "".join(_) == "India's population is 1,428,627,663."
+True
+```
+**A seeded punctuation/whitespace base alphabet** (`segmenters.py::PUNCT_WHITESPACE_SEED`, 48 characters: full ASCII punctuation — the alphabet Markdown syntax is built from: `# * _ \` [ ] ( ) > |` etc. — whitespace, common "smart" typography, and the two script-specific marks seen in the corpora, Hindi danda `।॥` and Spanish inverted punctuation `¿¡`), added to `tok.vocab` before training starts in `single_bpe.py::train_single_bpe`, so these are legitimately priced into the declared 10,000-token vocabulary rather than being an undeclared runtime bypass.
+
+**Real `encode_text()`/`decode()`** (`bpe.py::BPETokenizer`): word pretokens go through `segment_word` + the learned merges exactly as before; every other pretoken — always exactly one character, by construction of `tokenize_full_text` — is passed through **literally**, whether or not it happens to be in the seeded set. `decode` is exact concatenation. Because every token, merged or not, is always a literal substring of the input, this round-trips **any** text, not just text that happens to use the 48 seeded characters:
+```python
+def encode_text(self, text, segment_fn, tokenize_fn, is_word_fn):
+    tokens = []
+    for pretoken in tokenize_fn(text):
+        tokens.extend(self.encode(segment_fn(pretoken)) if is_word_fn(pretoken) else [pretoken])
+    return tokens
+
+@staticmethod
+def decode(tokens):
+    return "".join(tokens)
+```
+
+### 5.3 Proof, not assertion
+
+`single_bpe.py::verify_roundtrip` runs `decode(encode_text(text))` against a small battery and checks every visible non-whitespace character survives in order (in practice, since decode is exact concatenation, the *entire* string round-trips, whitespace included — not just the visible characters the gate requires). Actual output from the real run, including the exact sample that scored 0:
+```
+OK: "India's population is 1,428,627,663." -> 25 tokens
+OK: '# Heading\n\nSome *emphasis* and a [link](url), plus `code`.' -> 40 tokens
+OK: 'भारत की जनसंख्या 1,428,627,663 है।' -> 22 tokens
+OK: '¿Cuál es la población de la India? ¡Más de mil millones!' -> 32 tokens
+OK: 'తెలుగు ప్రజల సంఖ్య 9,00,00,000 కి పైగా ఉంది.' -> 24 tokens
+ALL ROUNDTRIP OK: True
+```
+
+### 5.4 Cost of the fix
+
+48 characters seeded into the base alphabet, costed against the same 10,000-token budget (no exceptions, no budget increase):
+
+| | Before the fix | After the fix |
+|---|---:|---:|
+| Base symbols | 1,447 | 1,495 (+48 punctuation/whitespace) |
+| Phase 2 merges | 6,164 | 6,116 (−48) |
+| Total vocabulary | 10,000 | 10,000 (unchanged) |
+| English / Hindi / Telugu ratio | 1.1546 | 1.1638 |
+| Spanish ratio | 1.1554 | 1.1646 |
+| Gap (`X_max − X_min`) | 0.00077 | 0.00077 (unchanged) |
+| **Score** | 1,300,000 | **1,300,000 (unchanged)** |
+
+48 tokens is 0.48% of the budget — the fairness-equalizing Phase 2 barely notices, and the score is identical to five significant figures. Faithful roundtrip was not in tension with the score; it was simply never implemented.
+
+---
+
+## 6. Results
+
+### 6.1 Final numbers
 
 | Language | Curated vocab words | Base units | **X (tokens/word)** |
 |---|---:|---:|---:|
-| **English** | 1,300 | 56 | **1.1546** ✅ (< 1.2) |
-| Hindi | 1,300 | 594 | 1.1546 |
-| Telugu | 1,300 | 656 | 1.1546 |
-| Spanish | 1,300 | 53 | 1.1554 |
+| **English** | 1,300 | 56 | **1.1638** ✅ (< 1.2) |
+| Hindi | 1,300 | 594 | 1.1638 |
+| Telugu | 1,300 | 656 | 1.1638 |
+| Spanish | 1,300 | 53 | 1.1646 |
 
-- Single joint tokenizer vocabulary: **10,000 / 10,000** (1,447 base symbols + 8,553 merges)
+- Single joint tokenizer vocabulary: **10,000 / 10,000** (1,495 base symbols — 1,447 word/akshara/digit units + 48 seeded punctuation/whitespace units, §5.4 — + 8,505 merges)
 - Phase 1 (forcing English < 1.2): **2,389** merges
-- Phase 2 (balancing all four with what's left): **6,164** merges
-- `X_max − X_min` = 1.1554 − 1.1546 = **0.00077**
+- Phase 2 (balancing all four with what's left): **6,116** merges
+- `X_max − X_min` = 1.1646 − 1.1638 = **0.00077**
 - **SCORE = 1000 / 0.00077 ≈ 1,300,000**
-- Zero UNK verified across all 9,160 words in the four full corpora (§4.3)
+- Zero UNK verified across all 9,160 words in the four full corpora (§4.3); faithful roundtrip verified on real prose including Markdown (§5.3)
 
-All four languages land within eight ten-thousandths of a token per word of each other — three of them (English, Hindi, Telugu) tie at exactly **1501/1300 = 1.1546**, and Spanish is a hair above at 1502/1300 = 1.1554.
+All four languages land within eight ten-thousandths of a token per word of each other — three of them (English, Hindi, Telugu) tie at exactly **1513/1300 = 1.1638**, and Spanish is a hair above at 1514/1300 = 1.1646.
 
-### 5.2 What the tokenizer actually learned
+### 6.2 What the tokenizer actually learned
 
 Most frequent word in each language collapses to a single token, as expected:
 ```
@@ -205,15 +279,16 @@ The single shared merge table interleaves languages near the end of training exa
 ```
 ("ossils" → English "fossils" fragment; "ताम्र" → Hindi "copper"; "కలకత్తా" → Telugu "Calcutta/Kolkata".)
 
-### 5.3 Output artifacts
+### 6.3 Output artifacts
 
-- **`output/vocab.json`** — the full 10,000-token vocabulary as a GPT-2-style `token -> integer id` map. Base symbols (1,447 of them: digits, Latin letters, Devanagari/Telugu aksharas) are assigned ids first, followed by merge results in the order they were learned.
-- **`output/merges.json`** — the single ordered merge table: `[{"rank", "left", "right", "result"}, ...]`, 8,553 entries. Rank order is the priority order `encode()` applies merges in — identical semantics to a GPT-2 `merges.txt`, just JSON instead of whitespace-pairs-per-line.
-- **`output/results.json`** — final ratios, score, per-language example words, and the UNK-check summary, machine-readable.
+- **`output/vocab.json`** — the full 10,000-token vocabulary as a GPT-2-style `token -> integer id` map. Base symbols (1,495 of them: digits, Latin letters, Devanagari/Telugu aksharas, and the seeded punctuation/whitespace set) are assigned ids first, followed by merge results in the order they were learned.
+- **`output/merges.json`** — the single ordered merge table: `[{"rank", "left", "right", "result"}, ...]`, 8,505 entries. Rank order is the priority order `encode()` applies merges in — identical semantics to a GPT-2 `merges.txt`, just JSON instead of whitespace-pairs-per-line.
+- **`output/results.json`** — final ratios, score, per-language example words, the UNK-check summary, and the roundtrip-check summary (§5.3), machine-readable.
+- **`output/widget.html`** — a self-contained visual dashboard of all of the above.
 
 ---
 
-## 6. Summary of design decisions (and why)
+## 7. Summary of design decisions (and why)
 
 | Decision | Alternative considered | Why we chose what we chose |
 |---|---|---|
@@ -221,14 +296,16 @@ The single shared merge table interleaves languages near the end of training exa
 | Two priority phases inside the one loop (force English, then equalize) | A single static per-language sampling weight fixed in advance | English's target is a hard floor, not a soft preference — an explicit phase boundary guarantees it deterministically |
 | Curated vocabulary = top-1,300 most frequent words per language | Literal "every unique word that appeared" | The literal definition makes `X_English<1.2` cost ~half the entire budget (§4.1); top-1,300 is chosen from a wide, verified-stable plateau (§4.2), not a cherry-picked edge value |
 | Base alphabet built from the **full** corpus; curated list only restricts training priority/evaluation | Cap the base alphabet at the curated list too | The latter loses coverage for characters/aksharas that only occur in excluded rare words — measured at 139 missing aksharas for Hindi alone (§4.3) — and would need an actual UNK fallback |
+| Full-text pretokenizer + seeded punctuation/whitespace alphabet + real `encode_text`/`decode` | Bolt a `decode()` onto the existing word-only pipeline | A `decode()` alone can't fix a pipeline that never captured punctuation/whitespace as tokens in the first place — the gap was structural (§5.1), so the fix had to touch pretokenization, not just add a method |
+| Unknown (unseeded) characters still pass through `encode_text` literally | Map anything outside the seeded set to an UNK placeholder | An UNK placeholder is exactly what the roundtrip gate forbids; passthrough guarantees *any* input round-trips, not just text limited to our anticipated character set |
 | Explicit `verify_no_unk` re-check over all four full corpora | Trust the "built from full freq" argument without checking | The guarantee is only as good as its weakest edge case (mixed alphanumeric tokens, digits, rare accented letters); running the check turns an argument into a fact |
 | Akshara units for Hindi/Telugu, characters for English/Spanish | Byte-level or codepoint-level BPE for everything | Codepoint-level BPE measurably splits conjuncts mid-cluster — 6.1% of Hindi vocabulary (§2.5) |
 
-## 7. Reproducing these numbers
+## 8. Reproducing these numbers
 
 ```bash
 cd tokenizer
 python3 src/fetch_corpus.py   # step 1: build data/*.txt (cached; force=True to refresh)
-python3 src/main.py           # steps 2-6: segment, train, verify zero-UNK, evaluate, dump vocab/merges
+python3 src/main.py           # steps 2-6: segment, train, verify zero-UNK, verify roundtrip, evaluate, dump vocab/merges
 ```
-Rewrites `output/results.json`, `output/vocab.json`, and `output/merges.json`. To try a different curated-vocabulary size, change `TOP_N` in `src/vocab_eval.py` (see §4.2 for what happens outside the 1250–1330 safe range).
+Rewrites `output/results.json`, `output/vocab.json`, and `output/merges.json`. To try a different curated-vocabulary size, change `TOP_N` in `src/vocab_eval.py` (see §4.2 for what happens outside the 1250–1330 safe range). To check roundtrip fidelity on your own sample text: `single_bpe.encode_text(tok, text)` then `BPETokenizer.decode(tokens)`.

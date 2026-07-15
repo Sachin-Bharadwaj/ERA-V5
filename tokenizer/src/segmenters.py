@@ -145,6 +145,66 @@ def segment_word(word: str) -> list:
     return list(word)
 
 
+# Guaranteed base-vocab members for every non-word pretoken a real
+# document is likely to contain: full ASCII punctuation (this is what
+# Markdown syntax is built from -- # * _ ` [ ] ( ) > | etc.), the
+# whitespace variants worth distinguishing, common "smart" typography,
+# and a couple of script-specific marks (Hindi danda, Spanish inverted
+# punctuation) seen in the four source corpora. Encoding never *depends*
+# on a character being in this set -- `tokenize_full_text` + the
+# passthrough in `BPETokenizer.encode_text` round-trip ANY character,
+# known or not -- this set just means the common ones are legitimately
+# priced into the declared 10,000-token vocabulary instead of being an
+# undeclared runtime fallback.
+PUNCT_WHITESPACE_SEED = set(
+    "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"  # ASCII punctuation/symbols
+    " \t\n\r"                              # whitespace
+    "‘’“”–—…•"  # ‘ ’ “ ” – — … •
+    "।॥"                          # । ॥  (Hindi danda / double danda)
+    "¿¡"                          # ¿ ¡  (Spanish inverted punctuation)
+)
+
+
+def is_word_pretoken(s: str) -> bool:
+    """True for the word-run pretokens `tokenize_full_text` produces (these
+    go through segment_word + BPE); false for the single-character
+    whitespace/punctuation pretokens it also produces (these pass through
+    literally -- see bpe.py::BPETokenizer.encode_text)."""
+    return bool(_WORD_RE.fullmatch(s))
+
+
+def tokenize_full_text(text: str) -> list:
+    """
+    Split arbitrary running text -- not just "words" -- into an ordered
+    list of pretokens that covers EVERY character, word or not, such
+    that "".join(tokenize_full_text(text)) == text exactly.
+
+    `extract_words` only ever returns the word-character runs matched by
+    `_WORD_RE`; every character in between (spaces, apostrophes, commas,
+    periods, Markdown punctuation, ...) is invisible to it. That's fine
+    for building a word-frequency vocabulary (Module 4's job), but a
+    tokenizer that only knows about word characters cannot encode, let
+    alone decode, real prose -- an apostrophe in "India's" or the commas
+    in "1,428,627,663" simply have nowhere to go. This function is the
+    fix: it walks the text once, alternating word runs (returned as a
+    single string, to be BPE-segmented/merged downstream same as
+    before) with every other character taken one at a time (so encoding
+    never has to guess how to group unknown punctuation -- each
+    character is its own pretoken and always round-trips).
+    """
+    pretokens = []
+    i, n = 0, len(text)
+    while i < n:
+        m = _WORD_RE.match(text, i)
+        if m:
+            pretokens.append(m.group(0))
+            i = m.end()
+        else:
+            pretokens.append(text[i])
+            i += 1
+    return pretokens
+
+
 if __name__ == "__main__":
     tests = [
         "क्षत्रिय",      # kShatriya: initial conjunct क्ष + त्रि + य
